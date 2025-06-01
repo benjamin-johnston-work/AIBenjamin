@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intelligent Adaptive Brick Ball Game</title>
+    <meta name="description" content="An intelligent brick ball game that adapts to your skill level using AI performance analysis">
+    <meta name="keywords" content="brick ball, breakout, arkanoid, AI, adaptive, game">
+    <meta name="author" content="AI Benjamin">
+    
+    <!-- Preload critical resources -->
+    <link rel="preload" href="styles/main.css" as="style">
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles/main.css">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='20' fill='%234CAF50'/><circle cx='50' cy='70' r='10' fill='%23FFD700'/></svg>">
+</head>
+<body>
+    <div class="game-container">
+        <h1>Intelligent Adaptive Brick Ball Game</h1>
+        
+        <div class="game-info">
+            <div>Score: <span id="score">0</span></div>
+            <div>Lives: <span id="lives">3</span></div>
+            <div>Level: <span id="level">1</span></div>
+            <div>AI Assistance: <span id="assistance">None</span></div>
+        </div>
+        
+        <canvas id="gameCanvas" width="800" height="600" tabindex="0">
+            Your browser does not support the HTML5 Canvas element. Please upgrade to a modern browser.
+        </canvas>
+        
+        <div class="controls">
+            Use <strong>← →</strong> arrow keys or <strong>mouse</strong> to move paddle | 
+            <strong>Space</strong> to pause | 
+            <strong>Click</strong> or <strong>Enter</strong> to launch ball
+        </div>
+    </div>
+    
+    <!-- Game Over Modal -->
+    <div class="game-over" id="gameOver">
+        <h2 id="gameOverTitle">Game Over</h2>
+        <p id="gameOverMessage">Your final score: <span id="finalScore">0</span></p>
+        <button onclick="window.game.restart()" class="button-pulse">Play Again</button>
+    </div>
+    
+    <!-- Power-up Status Panel -->
+    <div class="powerup-status" id="powerupStatus" style="display: none;">
+        <h3>Active Power-ups</h3>
+        <div id="powerupList"></div>
+    </div>
+    
+    <!-- AI Assistance Indicator -->
+    <div class="ai-indicator" id="aiIndicator">
+        <h3>AI Assistant</h3>
+        <div class="ai-level" id="aiLevel">None</div>
+    </div>
+    
+    <!-- Debug Panel (hidden by default) -->
+    <div class="debug-panel" id="debugPanel">
+        <h4>Debug Info</h4>
+        <div id="debugContent"></div>
+    </div>
+    
+    <!-- Loading Screen -->
+    <div class="loading" id="loadingScreen">
+        <div class="loading-spinner"></div>
+        <p>Loading Game...</p>
+    </div>
+
+    <!-- Game Scripts (ES6 Modules) -->
+    <script type="module">
+        // Import all game modules
+        import { Config } from './src/utils/Config.js';
+        import { MathUtils } from './src/utils/MathUtils.js';
+        import { EventBus, eventBus, GameEvents } from './src/core/EventBus.js';
+        import { Entity } from './src/core/Entity.js';
+        import { EntityManager } from './src/core/EntityManager.js';
+        
+        import { Paddle } from './src/entities/Paddle.js';
+        import { Ball } from './src/entities/Ball.js';
+        import { Brick } from './src/entities/Brick.js';
+        import { PowerUp } from './src/entities/PowerUp.js';
+        import { Particle } from './src/entities/Particle.js';
+        
+        import { CollisionSystem } from './src/systems/CollisionSystem.js';
+        import { AISystem } from './src/systems/AISystem.js';
+        import { InputManager } from './src/systems/InputManager.js';
+
+        /**
+         * Main Game Class
+         */
+        class Game {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                
+                // Game state
+                this.isRunning = false;
+                this.isPaused = false;
+                this.gameOver = false;
+                this.score = 0;
+                this.lives = Config.GAME.INITIAL_LIVES;
+                this.level = 1;
+                
+                // Core systems
+                this.entityManager = new EntityManager();
+                this.collisionSystem = new CollisionSystem(this.entityManager);
+                this.aiSystem = new AISystem(this.entityManager);
+                this.inputManager = new InputManager(this.canvas);
+                
+                // Game entities
+                this.paddle = null;
+                this.balls = [];
+                
+                // Timing
+                this.lastTime = 0;
+                this.deltaTime = 0;
+                
+                // Debug mode
+                this.debugMode = false;
+                
+                this.init();
+            }
+
+            /**
+             * Initialize the game
+             */
+            async init() {
+                try {
+                    console.log('Initializing Intelligent Adaptive Brick Ball Game...');
+                    
+                    // Setup event listeners
+                    this.setupEventListeners();
+                    
+                    // Setup AI system connection to collision system
+                    this.collisionSystem.getCollisionSystem = () => this.collisionSystem;
+                    this.aiSystem.getCollisionSystem = () => this.collisionSystem;
+                    
+                    // Create initial game entities
+                    this.createGameEntities();
+                    
+                    // Hide loading screen
+                    document.getElementById('loadingScreen').style.display = 'none';
+                    
+                    // Start the game
+                    this.start();
+                    
+                    console.log('Game initialized successfully!');
+                } catch (error) {
+                    console.error('Failed to initialize game:', error);
+                    this.showError('Failed to initialize game. Please refresh the page.');
+                }
+            }
+
+            /**
+             * Setup event listeners
+             */
+            setupEventListeners() {
+                // Game events
+                eventBus.on(GameEvents.BALL_LOST, this.onBallLost.bind(this));
+                eventBus.on(GameEvents.BRICK_DESTROYED, this.onBrickDestroyed.bind(this));
+                eventBus.on(GameEvents.POWERUP_COLLECTED, this.onPowerUpCollected.bind(this));
+                eventBus.on(GameEvents.AI_ASSISTANCE_CHANGED, this.onAIAssistanceChanged.bind(this));
+                
+                // Input events
+                eventBus.on(GameEvents.INPUT_PADDLE_MOVE, this.onPaddleMove.bind(this));
+                eventBus.on(GameEvents.INPUT_BALL_LAUNCH, this.onBallLaunch.bind(this));
+                eventBus.on(GameEvents.INPUT_PAUSE_TOGGLE, this.togglePause.bind(this));
+                
+                // Particle events
+                eventBus.on(GameEvents.PARTICLE_SPAWN, this.onParticleSpawn.bind(this));
+                eventBus.on('multiBall:create', this.onMultiBallCreate.bind(this));
+                
+                // Debug key
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'F3') {
+                        e.preventDefault();
+                        this.toggleDebug();
+                    }
+                });
+                
+                // Window events
+                window.addEventListener('beforeunload', () => {
+                    this.cleanup();
+                });
+            }
+
+            /**
+             * Create initial game entities
+             */
+            createGameEntities() {
+                // Create paddle
+                this.paddle = new Paddle(
+                    (Config.CANVAS.WIDTH - Config.PADDLE.WIDTH) / 2,
+                    Config.PADDLE.Y_POSITION
+                );
+                this.entityManager.addEntity(this.paddle);
+                
+                // Create initial ball
+                this.createBall();
+                
+                // Create bricks
+                this.createBricks();
+            }
+
+            /**
+             * Create a new ball
+             */
+            createBall() {
+                const ball = new Ball(
+                    this.paddle.getCenterX(),
+                    this.paddle.getTopY() - Config.BALL.RADIUS
+                );
+                ball.positionOnPaddle(this.paddle);
+                this.entityManager.addEntity(ball);
+                this.balls.push(ball);
+            }
+
+            /**
+             * Create bricks for current level
+             */
+            createBricks() {
+                const bricks = Brick.createBrickGrid();
+                bricks.forEach(brick => {
+                    this.entityManager.addEntity(brick);
+                });
+            }
+
+            /**
+             * Start the game
+             */
+            start() {
+                this.isRunning = true;
+                this.gameOver = false;
+                this.lastTime = performance.now();
+                
+                // Emit game start event
+                eventBus.emit(GameEvents.GAME_START);
+                
+                // Start game loop
+                this.gameLoop();
+            }
+
+            /**
+             * Main game loop
+             */
+            gameLoop(currentTime = performance.now()) {
+                if (!this.isRunning) return;
+                
+                // Calculate delta time
+                this.deltaTime = currentTime - this.lastTime;
+                this.lastTime = currentTime;
+                
+                // Cap delta time to prevent large jumps
+                this.deltaTime = Math.min(this.deltaTime, Config.GAME.FRAME_TIME * 3);
+                
+                if (!this.isPaused && !this.gameOver) {
+                    this.update(this.deltaTime);
+                }
+                
+                this.render();
+                
+                // Continue game loop
+                requestAnimationFrame(this.gameLoop.bind(this));
+            }
+
+            /**
+             * Update game logic
+             */
+            update(deltaTime) {
+                // Update systems
+                this.inputManager.update(deltaTime);
+                this.entityManager.update(deltaTime);
+                this.collisionSystem.update(deltaTime);
+                this.aiSystem.update(deltaTime);
+                
+                // Update game state
+                this.updateGameState();
+                
+                // Update UI
+                this.updateUI();
+            }
+
+            /**
+             * Update game state
+             */
+            updateGameState() {
+                // Check for level completion
+                const bricks = this.entityManager.getEntitiesByType('Brick');
+                const visibleBricks = bricks.filter(brick => brick.visible);
+                
+                if (visibleBricks.length === 0) {
+                    this.nextLevel();
+                }
+                
+                // Update balls array
+                this.balls = this.entityManager.getEntitiesByType('Ball');
+                
+                // Check for game over
+                if (this.balls.length === 0 && this.lives <= 0) {
+                    this.endGame();
+                }
+            }
+
+            /**
+             * Render the game
+             */
+            render() {
+                // Clear canvas
+                this.ctx.fillStyle = Config.CANVAS.BACKGROUND_COLOR;
+                this.ctx.fillRect(0, 0, Config.CANVAS.WIDTH, Config.CANVAS.HEIGHT);
+                
+                // Render all entities
+                this.entityManager.render(this.ctx);
+                
+                // Render debug info if enabled
+                if (this.debugMode) {
+                    this.renderDebugInfo();
+                }
+            }
+
+            /**
+             * Event handlers
+             */
+            onBallLost(data) {
+                const ballIndex = this.balls.indexOf(data.ball);
+                if (ballIndex !== -1) {
+                    this.balls.splice(ballIndex, 1);
+                }
+                
+                if (this.balls.length === 0) {
+                    this.loseLife();
+                }
+            }
+
+            onBrickDestroyed(data) {
+                this.score += data.pointsAwarded;
+                
+                // Create power-up chance
+                const powerUp = PowerUp.createAtPosition(
+                    data.brick.position.x + data.brick.width / 2,
+                    data.brick.position.y + data.brick.height / 2
+                );
+                
+                if (powerUp) {
+                    this.entityManager.addEntity(powerUp);
+                }
+            }
+
+            onPowerUpCollected(data) {
+                console.log(`Power-up collected: ${data.type}`);
+            }
+
+            onAIAssistanceChanged(data) {
+                console.log(`AI assistance changed: ${data.levelName}`);
+            }
+
+            onPaddleMove(data) {
+                if (data.useMouseControl) {
+                    this.paddle.handleMouseInput(data.mouseX);
+                } else {
+                    this.paddle.handleKeyInput('ArrowLeft', data.left);
+                    this.paddle.handleKeyInput('ArrowRight', data.right);
+                }
+            }
+
+            onBallLaunch(data) {
+                this.balls.forEach(ball => {
+                    if (ball.onPaddle) {
+                        ball.launch();
+                    }
+                });
+            }
+
+            onParticleSpawn(data) {
+                const particles = Particle.createBurst(data.x, data.y, {
+                    count: data.count,
+                    color: data.color
+                });
+                
+                particles.forEach(particle => {
+                    this.entityManager.addEntity(particle);
+                });
+            }
+
+            onMultiBallCreate(data) {
+                // Create additional balls for multi-ball power-up
+                const originalBall = this.balls.find(ball => !ball.onPaddle);
+                if (originalBall) {
+                    for (let i = 0; i < 2; i++) {
+                        const newBall = Ball.createMultiBall(
+                            originalBall.position.x,
+                            originalBall.position.y,
+                            originalBall.velocity.x * 0.8 + (i === 0 ? 2 : -2),
+                            originalBall.velocity.y * 0.8,
+                            i === 0 ? '#FF69B4' : '#00BFFF'
+                        );
+                        this.entityManager.addEntity(newBall);
+                        this.balls.push(newBall);
+                    }
+                }
+            }
+
+            /**
+             * Game state methods
+             */
+            loseLife() {
+                this.lives--;
+                eventBus.emit(GameEvents.LIFE_LOST, { lives: this.lives });
+                
+                if (this.lives > 0) {
+                    // Create new ball on paddle
+                    this.createBall();
+                } else {
+                    this.endGame();
+                }
+            }
+
+            nextLevel() {
+                this.level++;
+                eventBus.emit(GameEvents.LEVEL_COMPLETE, { level: this.level - 1 });
+                eventBus.emit(GameEvents.LEVEL_START, { level: this.level });
+                
+                // Create new ball on paddle
+                this.balls = [];
+                this.entityManager.getEntitiesByType('Ball').forEach(ball => {
+                    this.entityManager.removeEntity(ball);
+                });
+                this.createBall();
+                
+                // Create new bricks
+                this.createBricks();
+                
+                // Increase ball speed slightly
+                this.balls.forEach(ball => {
+                    ball.speed += Config.BALL.SPEED_INCREASE_PER_LEVEL;
+                });
+            }
+
+            endGame() {
+                this.gameOver = true;
+                eventBus.emit(GameEvents.GAME_OVER, { 
+                    score: this.score, 
+                    level: this.level 
+                });
+                
+                // Show game over screen
+                document.getElementById('finalScore').textContent = this.score;
+                document.getElementById('gameOver').style.display = 'block';
+            }
+
+            restart() {
+                // Reset game state
+                this.score = 0;
+                this.lives = Config.GAME.INITIAL_LIVES;
+                this.level = 1;
+                this.gameOver = false;
+                this.isPaused = false;
+                
+                // Clear entities
+                this.entityManager.clear();
+                this.balls = [];
+                
+                // Reset systems
+                this.collisionSystem.reset();
+                this.aiSystem.onGameRestart();
+                this.inputManager.reset();
+                
+                // Hide game over screen
+                document.getElementById('gameOver').style.display = 'none';
+                
+                // Create new game entities
+                this.createGameEntities();
+                
+                // Emit restart event
+                eventBus.emit(GameEvents.GAME_RESTART);
+                
+                console.log('Game restarted');
+            }
+
+            togglePause() {
+                this.isPaused = !this.isPaused;
+                
+                if (this.isPaused) {
+                    eventBus.emit(GameEvents.GAME_PAUSE);
+                } else {
+                    eventBus.emit(GameEvents.GAME_RESUME);
+                }
+            }
+
+            toggleDebug() {
+                this.debugMode = !this.debugMode;
+                const debugPanel = document.getElementById('debugPanel');
+                debugPanel.classList.toggle('visible', this.debugMode);
+            }
+
+            /**
+             * Update UI elements
+             */
+            updateUI() {
+                document.getElementById('score').textContent = this.score;
+                document.getElementById('lives').textContent = this.lives;
+                document.getElementById('level').textContent = this.level;
+                document.getElementById('assistance').textContent = this.aiSystem.getAssistanceLevelName(this.aiSystem.getAssistanceLevel());
+                
+                // Update AI indicator
+                const aiLevel = document.getElementById('aiLevel');
+                const levelName = this.aiSystem.getAssistanceLevelName(this.aiSystem.getAssistanceLevel());
+                aiLevel.textContent = levelName;
+                aiLevel.className = `ai-level ${levelName.toLowerCase()}`;
+                
+                // Update power-up status
+                this.updatePowerUpStatus();
+            }
+
+            updatePowerUpStatus() {
+                const powerUpStatus = this.paddle.getPowerUpStatus();
+                const statusPanel = document.getElementById('powerupStatus');
+                const statusList = document.getElementById('powerupList');
+                
+                if (Object.keys(powerUpStatus).length > 0) {
+                    statusPanel.style.display = 'block';
+                    statusList.innerHTML = '';
+                    
+                    Object.entries(powerUpStatus).forEach(([type, status]) => {
+                        const item = document.createElement('div');
+                        item.className = 'powerup-item';
+                        item.innerHTML = `
+                            <span class="powerup-name">${type}</span>
+                            <span class="powerup-time">${status.timeLeftSeconds}s</span>
+                        `;
+                        statusList.appendChild(item);
+                    });
+                } else {
+                    statusPanel.style.display = 'none';
+                }
+            }
+
+            renderDebugInfo() {
+                const debugContent = document.getElementById('debugContent');
+                if (!debugContent) return;
+                
+                const entityDebug = this.entityManager.getDebugInfo();
+                const collisionDebug = this.collisionSystem.getDebugInfo();
+                const aiDebug = this.aiSystem.getDebugInfo();
+                const inputDebug = this.inputManager.getDebugInfo();
+                
+                debugContent.innerHTML = `
+                    <div class="debug-item">FPS: ${Math.round(1000 / this.deltaTime)}</div>
+                    <div class="debug-item">Entities: ${entityDebug.totalEntities}</div>
+                    <div class="debug-item">Balls: ${entityDebug.entitiesByType.Ball || 0}</div>
+                    <div class="debug-item">Bricks: ${entityDebug.entitiesByType.Brick || 0}</div>
+                    <div class="debug-item">Particles: ${entityDebug.entitiesByType.Particle || 0}</div>
+                    <div class="debug-item">AI Level: ${aiDebug.assistanceLevelName}</div>
+                    <div class="debug-item">Collisions: ${collisionDebug.activeCollisionPairs}</div>
+                `;
+            }
+
+            showError(message) {
+                const errorDiv = document.createElement('div');
+                errorDiv.style.cssText = `
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: #f44336;
+                    color: white;
+                    padding: 20px;
+                    border-radius: 8px;
+                    z-index: 10000;
+                `;
+                errorDiv.textContent = message;
+                document.body.appendChild(errorDiv);
+            }
+
+            cleanup() {
+                this.isRunning = false;
+                this.inputManager.destroy();
+                this.aiSystem.destroy();
+            }
+        }
+
+        // Initialize and start the game
+        window.game = new Game();
+        
+        // Make game globally accessible for debugging
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            window.gameDebug = {
+                entityManager: window.game.entityManager,
+                collisionSystem: window.game.collisionSystem,
+                aiSystem: window.game.aiSystem,
+                inputManager: window.game.inputManager,
+                Config: Config,
+                MathUtils: MathUtils,
+                eventBus: eventBus,
+                GameEvents: GameEvents
+            };
+        }
+    </script>
+</body>
+</html>
