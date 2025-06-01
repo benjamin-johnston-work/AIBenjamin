@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Intelligent Adaptive Brick Ball Game</title>
-    <meta name="description" content="An intelligent brick ball game that adapts to your skill level using AI performance analysis">
-    <meta name="keywords" content="brick ball, breakout, arkanoid, AI, adaptive, game">
+    <title>Intelligent Adaptive Brick Ball Game - Spectacular Edition</title>
+    <meta name="description" content="An intelligent brick ball game with spectacular visual effects, combo systems, special bricks, and adaptive AI">
+    <meta name="keywords" content="brick ball, breakout, arkanoid, AI, adaptive, game, spectacular, effects">
     <meta name="author" content="AI Benjamin">
     
     <!-- Preload critical resources -->
@@ -20,11 +20,14 @@
 <body>
     <div class="game-container">
         <h1>Intelligent Adaptive Brick Ball Game</h1>
+        <p class="subtitle">Spectacular Edition with Visual Effects & Achievements</p>
         
         <div class="game-info">
             <div>Score: <span id="score">0</span></div>
             <div>Lives: <span id="lives">3</span></div>
             <div>Level: <span id="level">1</span></div>
+            <div>Combo: <span id="combo">0</span>x</div>
+            <div>Multiplier: <span id="multiplier">1</span>x</div>
             <div>AI Assistance: <span id="assistance">None</span></div>
         </div>
         
@@ -35,7 +38,19 @@
         <div class="controls">
             Use <strong>← →</strong> arrow keys or <strong>mouse</strong> to move paddle | 
             <strong>Space</strong> to pause | 
-            <strong>Click</strong> or <strong>Enter</strong> to launch ball
+            <strong>Click</strong> or <strong>Enter</strong> to launch ball |
+            <strong>F3</strong> for debug info
+        </div>
+        
+        <div class="features-info">
+            <h3>Spectacular Features:</h3>
+            <ul>
+                <li><strong>Combo System:</strong> Chain hits for massive multipliers (up to 20x!)</li>
+                <li><strong>Special Bricks:</strong> 💥 Explosive, 🔩 Steel, ❓ Mystery, ⚡ Chain</li>
+                <li><strong>Visual Effects:</strong> Screen shake, particle explosions, color flashes</li>
+                <li><strong>Achievements:</strong> Unlock badges for epic accomplishments</li>
+                <li><strong>AI Assistance:</strong> Adaptive difficulty that learns from your play</li>
+            </ul>
         </div>
     </div>
     
@@ -43,6 +58,7 @@
     <div class="game-over" id="gameOver">
         <h2 id="gameOverTitle">Game Over</h2>
         <p id="gameOverMessage">Your final score: <span id="finalScore">0</span></p>
+        <p>Max Combo: <span id="finalCombo">0</span>x | Achievements: <span id="finalAchievements">0</span></p>
         <button onclick="window.game.restart()" class="button-pulse">Play Again</button>
     </div>
     
@@ -58,6 +74,15 @@
         <div class="ai-level" id="aiLevel">None</div>
     </div>
     
+    <!-- Combo Display -->
+    <div class="combo-display" id="comboDisplay" style="display: none;">
+        <div class="combo-text">COMBO</div>
+        <div class="combo-number" id="comboNumber">0</div>
+        <div class="combo-multiplier">x<span id="comboMultiplier">1</span></div>
+    </div>
+    
+    <!-- Achievement Notifications will be rendered by AchievementSystem -->
+    
     <!-- Debug Panel (hidden by default) -->
     <div class="debug-panel" id="debugPanel">
         <h4>Debug Info</h4>
@@ -67,7 +92,7 @@
     <!-- Loading Screen -->
     <div class="loading" id="loadingScreen">
         <div class="loading-spinner"></div>
-        <p>Loading Game...</p>
+        <p>Loading Spectacular Features...</p>
     </div>
 
     <!-- Game Scripts (ES6 Modules) -->
@@ -88,9 +113,17 @@
         import { CollisionSystem } from './src/systems/CollisionSystem.js';
         import { AISystem } from './src/systems/AISystem.js';
         import { InputManager } from './src/systems/InputManager.js';
+        import { ComboSystem } from './src/systems/ComboSystem.js';
+        import { EffectsSystem } from './src/systems/EffectsSystem.js';
+        import { AchievementSystem } from './src/systems/AchievementSystem.js';
+        
+        import { ExplosiveBrick } from './src/entities/ExplosiveBrick.js';
+        import { SteelBrick } from './src/entities/SteelBrick.js';
+        import { MysteryBrick } from './src/entities/MysteryBrick.js';
+        import { ChainBrick } from './src/entities/ChainBrick.js';
 
         /**
-         * Main Game Class
+         * Main Game Class - Spectacular Edition
          */
         class Game {
             constructor() {
@@ -111,6 +144,11 @@
                 this.aiSystem = new AISystem(this.entityManager);
                 this.inputManager = new InputManager(this.canvas);
                 
+                // Spectacular new systems
+                this.comboSystem = new ComboSystem();
+                this.effectsSystem = new EffectsSystem(this.canvas, this.ctx);
+                this.achievementSystem = new AchievementSystem();
+                
                 // Game entities
                 this.paddle = null;
                 this.balls = [];
@@ -130,14 +168,13 @@
              */
             async init() {
                 try {
-                    console.log('Initializing Intelligent Adaptive Brick Ball Game...');
+                    console.log('Initializing Spectacular Brick Ball Game...');
                     
                     // Setup event listeners
                     this.setupEventListeners();
                     
-                    // Setup AI system connection to collision system
-                    this.collisionSystem.getCollisionSystem = () => this.collisionSystem;
-                    this.aiSystem.getCollisionSystem = () => this.collisionSystem;
+                    // Setup system connections
+                    this.setupSystemConnections();
                     
                     // Create initial game entities
                     this.createGameEntities();
@@ -148,11 +185,23 @@
                     // Start the game
                     this.start();
                     
-                    console.log('Game initialized successfully!');
+                    console.log('Spectacular game initialized successfully!');
                 } catch (error) {
                     console.error('Failed to initialize game:', error);
                     this.showError('Failed to initialize game. Please refresh the page.');
                 }
+            }
+
+            /**
+             * Setup system connections
+             */
+            setupSystemConnections() {
+                // Connect collision system to other systems
+                this.collisionSystem.getCollisionSystem = () => this.collisionSystem;
+                this.aiSystem.getCollisionSystem = () => this.collisionSystem;
+                
+                // Connect effects system to collision events
+                this.collisionSystem.effectsSystem = this.effectsSystem;
             }
 
             /**
@@ -173,6 +222,20 @@
                 // Particle events
                 eventBus.on(GameEvents.PARTICLE_SPAWN, this.onParticleSpawn.bind(this));
                 eventBus.on('multiBall:create', this.onMultiBallCreate.bind(this));
+                
+                // Spectacular feature events
+                eventBus.on('combo:hit', this.onComboHit.bind(this));
+                eventBus.on('combo:broken', this.onComboBroken.bind(this));
+                eventBus.on('brick:explode', this.onBrickExplosion.bind(this));
+                eventBus.on('chain:reaction', this.onChainReaction.bind(this));
+                eventBus.on('chain:findTargets', this.onChainFindTargets.bind(this));
+                eventBus.on('particle:create', this.onParticleCreate.bind(this));
+                eventBus.on('achievement:unlocked', this.onAchievementUnlocked.bind(this));
+                
+                // Ball trail events
+                eventBus.on('ball:trail', (data) => {
+                    this.effectsSystem.updateBallTrail(data);
+                });
                 
                 // Debug key
                 document.addEventListener('keydown', (e) => {
@@ -202,8 +265,8 @@
                 // Create initial ball
                 this.createBall();
                 
-                // Create bricks
-                this.createBricks();
+                // Create bricks with special types
+                this.createBricksWithSpecialTypes();
             }
 
             /**
@@ -220,12 +283,63 @@
             }
 
             /**
-             * Create bricks for current level
+             * Create bricks with special types for spectacular gameplay
              */
-            createBricks() {
-                const bricks = Brick.createBrickGrid();
-                bricks.forEach(brick => {
-                    this.entityManager.addEntity(brick);
+            createBricksWithSpecialTypes() {
+                const bricks = [];
+                
+                for (let row = 0; row < Config.BRICKS.ROWS; row++) {
+                    for (let col = 0; col < Config.BRICKS.COLS; col++) {
+                        const x = col * (Config.BRICKS.WIDTH + Config.BRICKS.PADDING) + Config.BRICKS.OFFSET_LEFT;
+                        const y = row * (Config.BRICKS.HEIGHT + Config.BRICKS.PADDING) + Config.BRICKS.OFFSET_TOP;
+                        
+                        let brick;
+                        
+                        // Determine brick type based on spawn rates
+                        const rand = Math.random();
+                        if (rand < Config.SPECIAL_BRICKS.SPAWN_RATES.EXPLOSIVE) {
+                            brick = new ExplosiveBrick(x, y);
+                        } else if (rand < Config.SPECIAL_BRICKS.SPAWN_RATES.EXPLOSIVE + Config.SPECIAL_BRICKS.SPAWN_RATES.STEEL) {
+                            brick = new SteelBrick(x, y);
+                        } else if (rand < Config.SPECIAL_BRICKS.SPAWN_RATES.EXPLOSIVE + Config.SPECIAL_BRICKS.SPAWN_RATES.STEEL + Config.SPECIAL_BRICKS.SPAWN_RATES.MYSTERY) {
+                            brick = new MysteryBrick(x, y);
+                        } else if (rand < Config.SPECIAL_BRICKS.SPAWN_RATES.EXPLOSIVE + Config.SPECIAL_BRICKS.SPAWN_RATES.STEEL + Config.SPECIAL_BRICKS.SPAWN_RATES.MYSTERY + Config.SPECIAL_BRICKS.SPAWN_RATES.CHAIN) {
+                            brick = new ChainBrick(x, y);
+                        } else {
+                            // Regular brick
+                            const typeIndex = Math.min(row, Config.BRICKS.TYPES.length - 1);
+                            const brickType = Config.BRICKS.TYPES[typeIndex];
+                            brick = new Brick(x, y, brickType);
+                        }
+                        
+                        bricks.push(brick);
+                        this.entityManager.addEntity(brick);
+                    }
+                }
+                
+                // Update chain brick targets
+                this.updateChainBrickTargets();
+            }
+
+            /**
+             * Update chain brick targets for chain reactions
+             */
+            updateChainBrickTargets() {
+                const chainBricks = this.entityManager.getEntitiesByTag('chain');
+                
+                chainBricks.forEach(chainBrick => {
+                    const targets = chainBricks.filter(other => {
+                        if (other === chainBrick || !other.visible) return false;
+                        
+                        const distance = MathUtils.distance(
+                            chainBrick.getCenter(),
+                            other.getCenter()
+                        );
+                        
+                        return distance <= chainBrick.chainRadius;
+                    });
+                    
+                    chainBrick.setChainTargets(targets);
                 });
             }
 
@@ -239,6 +353,7 @@
                 
                 // Emit game start event
                 eventBus.emit(GameEvents.GAME_START);
+                eventBus.emit('level:started');
                 
                 // Start game loop
                 this.gameLoop();
@@ -271,17 +386,41 @@
              * Update game logic
              */
             update(deltaTime) {
-                // Update systems
+                // Update core systems
                 this.inputManager.update(deltaTime);
                 this.entityManager.update(deltaTime);
                 this.collisionSystem.update(deltaTime);
                 this.aiSystem.update(deltaTime);
+                
+                // Update spectacular systems
+                this.comboSystem.update(deltaTime);
+                this.effectsSystem.update(deltaTime);
+                this.achievementSystem.update(deltaTime);
+                
+                // Update ball trails
+                this.updateBallTrails();
                 
                 // Update game state
                 this.updateGameState();
                 
                 // Update UI
                 this.updateUI();
+            }
+
+            /**
+             * Update ball trails for visual effects
+             */
+            updateBallTrails() {
+                this.balls.forEach((ball, index) => {
+                    if (!ball.onPaddle) {
+                        eventBus.emit('ball:trail', {
+                            ballId: index,
+                            position: { x: ball.position.x, y: ball.position.y },
+                            speed: ball.getSpeed(),
+                            combo: this.comboSystem.getCurrentCombo()
+                        });
+                    }
+                });
             }
 
             /**
@@ -303,6 +442,11 @@
                 if (this.balls.length === 0 && this.lives <= 0) {
                     this.endGame();
                 }
+                
+                // Update chain brick targets periodically
+                if (Math.random() < 0.01) { // 1% chance per frame
+                    this.updateChainBrickTargets();
+                }
             }
 
             /**
@@ -313,8 +457,14 @@
                 this.ctx.fillStyle = Config.CANVAS.BACKGROUND_COLOR;
                 this.ctx.fillRect(0, 0, Config.CANVAS.WIDTH, Config.CANVAS.HEIGHT);
                 
+                // Render spectacular effects (background layer)
+                this.effectsSystem.render();
+                
                 // Render all entities
                 this.entityManager.render(this.ctx);
+                
+                // Render achievement notifications
+                this.achievementSystem.renderNotifications(this.ctx);
                 
                 // Render debug info if enabled
                 if (this.debugMode) {
@@ -331,6 +481,9 @@
                     this.balls.splice(ballIndex, 1);
                 }
                 
+                // Break combo on ball loss
+                eventBus.emit('ball:lost');
+                
                 if (this.balls.length === 0) {
                     this.loseLife();
                 }
@@ -338,6 +491,9 @@
 
             onBrickDestroyed(data) {
                 this.score += data.pointsAwarded;
+                
+                // Emit for achievement tracking
+                eventBus.emit('brick:destroyed', data);
                 
                 // Create power-up chance
                 const powerUp = PowerUp.createAtPosition(
@@ -348,10 +504,14 @@
                 if (powerUp) {
                     this.entityManager.addEntity(powerUp);
                 }
+                
+                // Update score display
+                eventBus.emit('score:updated', { score: this.score });
             }
 
             onPowerUpCollected(data) {
                 console.log(`Power-up collected: ${data.type}`);
+                eventBus.emit('powerup:activated', data);
             }
 
             onAIAssistanceChanged(data) {
@@ -404,12 +564,110 @@
                 }
             }
 
+            // Spectacular feature event handlers
+            onComboHit(data) {
+                // Update combo display
+                this.updateComboDisplay(data.combo, data.multiplier);
+            }
+
+            onComboBroken(data) {
+                // Hide combo display
+                document.getElementById('comboDisplay').style.display = 'none';
+            }
+
+            onBrickExplosion(data) {
+                // Handle explosive brick chain destruction
+                const bricks = this.entityManager.getEntitiesByType('Brick');
+                
+                bricks.forEach(brick => {
+                    if (!brick.visible) return;
+                    
+                    const distance = MathUtils.distance(data.center, brick.getCenter());
+                    if (distance <= data.radius) {
+                        // Destroy brick in explosion
+                        brick.destroy();
+                        eventBus.emit('brick:destroyed', {
+                            brick: brick,
+                            ball: null,
+                            points: brick.points,
+                            source: 'explosion'
+                        });
+                    }
+                });
+            }
+
+            onChainReaction(data) {
+                // Trigger chain reaction on target bricks
+                data.targets.forEach(target => {
+                    if (target.visible && !target.isChaining) {
+                        setTimeout(() => {
+                            target.chainActivate();
+                        }, 100 + Math.random() * 200); // Staggered activation
+                    }
+                });
+            }
+
+            onChainFindTargets(data) {
+                // Help chain bricks find their targets
+                const chainBricks = this.entityManager.getEntitiesByTag('chain');
+                const targets = chainBricks.filter(brick => {
+                    if (brick === data.source || !brick.visible) return false;
+                    
+                    const distance = MathUtils.distance(data.position, brick.getCenter());
+                    return distance <= data.radius;
+                });
+                
+                data.source.setChainTargets(targets);
+            }
+
+            onParticleCreate(data) {
+                // Create individual particles for effects system
+                const particle = new Particle(data.x, data.y);
+                particle.velocity.x = data.vx || 0;
+                particle.velocity.y = data.vy || 0;
+                particle.life = data.life || 1000;
+                particle.size = data.size || 2;
+                particle.color = data.color || '#FFFFFF';
+                particle.gravity = data.gravity || 0;
+                
+                this.entityManager.addEntity(particle);
+            }
+
+            onAchievementUnlocked(data) {
+                console.log(`Achievement unlocked: ${data.achievement.name}`);
+            }
+
+            /**
+             * Update combo display
+             */
+            updateComboDisplay(combo, multiplier) {
+                const comboDisplay = document.getElementById('comboDisplay');
+                const comboNumber = document.getElementById('comboNumber');
+                const comboMultiplier = document.getElementById('comboMultiplier');
+                
+                if (combo > 2) {
+                    comboDisplay.style.display = 'block';
+                    comboNumber.textContent = combo;
+                    comboMultiplier.textContent = multiplier;
+                    
+                    // Add visual effects based on combo level
+                    comboDisplay.className = 'combo-display';
+                    if (combo >= 25) comboDisplay.classList.add('legendary');
+                    else if (combo >= 15) comboDisplay.classList.add('epic');
+                    else if (combo >= 10) comboDisplay.classList.add('great');
+                    else if (combo >= 5) comboDisplay.classList.add('good');
+                } else {
+                    comboDisplay.style.display = 'none';
+                }
+            }
+
             /**
              * Game state methods
              */
             loseLife() {
                 this.lives--;
                 eventBus.emit(GameEvents.LIFE_LOST, { lives: this.lives });
+                eventBus.emit('ball:lost');
                 
                 if (this.lives > 0) {
                     // Create new ball on paddle
@@ -423,6 +681,8 @@
                 this.level++;
                 eventBus.emit(GameEvents.LEVEL_COMPLETE, { level: this.level - 1 });
                 eventBus.emit(GameEvents.LEVEL_START, { level: this.level });
+                eventBus.emit('level:completed', { level: this.level - 1 });
+                eventBus.emit('level:started');
                 
                 // Create new ball on paddle
                 this.balls = [];
@@ -431,8 +691,8 @@
                 });
                 this.createBall();
                 
-                // Create new bricks
-                this.createBricks();
+                // Create new bricks with special types
+                this.createBricksWithSpecialTypes();
                 
                 // Increase ball speed slightly
                 this.balls.forEach(ball => {
@@ -447,8 +707,10 @@
                     level: this.level 
                 });
                 
-                // Show game over screen
+                // Show game over screen with spectacular stats
                 document.getElementById('finalScore').textContent = this.score;
+                document.getElementById('finalCombo').textContent = this.comboSystem.getMaxCombo();
+                document.getElementById('finalAchievements').textContent = this.achievementSystem.getUnlockedAchievements().length;
                 document.getElementById('gameOver').style.display = 'block';
             }
 
@@ -468,17 +730,22 @@
                 this.collisionSystem.reset();
                 this.aiSystem.onGameRestart();
                 this.inputManager.reset();
+                this.comboSystem.reset();
+                this.effectsSystem.reset();
+                this.achievementSystem.reset();
                 
                 // Hide game over screen
                 document.getElementById('gameOver').style.display = 'none';
+                document.getElementById('comboDisplay').style.display = 'none';
                 
                 // Create new game entities
                 this.createGameEntities();
                 
                 // Emit restart event
                 eventBus.emit(GameEvents.GAME_RESTART);
+                eventBus.emit('game:reset');
                 
-                console.log('Game restarted');
+                console.log('Spectacular game restarted');
             }
 
             togglePause() {
@@ -504,6 +771,8 @@
                 document.getElementById('score').textContent = this.score;
                 document.getElementById('lives').textContent = this.lives;
                 document.getElementById('level').textContent = this.level;
+                document.getElementById('combo').textContent = this.comboSystem.getCurrentCombo();
+                document.getElementById('multiplier').textContent = this.comboSystem.getMultiplier();
                 document.getElementById('assistance').textContent = this.aiSystem.getAssistanceLevelName(this.aiSystem.getAssistanceLevel());
                 
                 // Update AI indicator
@@ -535,18 +804,21 @@
                         statusList.appendChild(item);
                     });
                 } else {
-                    statusPanel.style.display = 'none';
+                    statusPanel.style.display = "none";
                 }
             }
 
             renderDebugInfo() {
-                const debugContent = document.getElementById('debugContent');
+                const debugContent = document.getElementById("debugContent");
                 if (!debugContent) return;
                 
                 const entityDebug = this.entityManager.getDebugInfo();
                 const collisionDebug = this.collisionSystem.getDebugInfo();
                 const aiDebug = this.aiSystem.getDebugInfo();
                 const inputDebug = this.inputManager.getDebugInfo();
+                const comboDebug = this.comboSystem.getDebugInfo();
+                const effectsDebug = this.effectsSystem.getDebugInfo();
+                const achievementDebug = this.achievementSystem.getDebugInfo();
                 
                 debugContent.innerHTML = `
                     <div class="debug-item">FPS: ${Math.round(1000 / this.deltaTime)}</div>
@@ -556,11 +828,14 @@
                     <div class="debug-item">Particles: ${entityDebug.entitiesByType.Particle || 0}</div>
                     <div class="debug-item">AI Level: ${aiDebug.assistanceLevelName}</div>
                     <div class="debug-item">Collisions: ${collisionDebug.activeCollisionPairs}</div>
+                    <div class="debug-item">Combo: ${comboDebug.currentCombo}x (Max: ${comboDebug.maxCombo})</div>
+                    <div class="debug-item">Effects: ${effectsDebug.activeParticles} particles</div>
+                    <div class="debug-item">Achievements: ${achievementDebug.unlockedCount}/${achievementDebug.totalAchievements}</div>
                 `;
             }
 
             showError(message) {
-                const errorDiv = document.createElement('div');
+                const errorDiv = document.createElement("div");
                 errorDiv.style.cssText = `
                     position: fixed;
                     top: 50%;
@@ -587,12 +862,15 @@
         window.game = new Game();
         
         // Make game globally accessible for debugging
-        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
             window.gameDebug = {
                 entityManager: window.game.entityManager,
                 collisionSystem: window.game.collisionSystem,
                 aiSystem: window.game.aiSystem,
                 inputManager: window.game.inputManager,
+                comboSystem: window.game.comboSystem,
+                effectsSystem: window.game.effectsSystem,
+                achievementSystem: window.game.achievementSystem,
                 Config: Config,
                 MathUtils: MathUtils,
                 eventBus: eventBus,

@@ -440,6 +440,14 @@ export class Ball extends Entity {
     /**
      * Reset ball to initial state
      */
+    /**
+     * Get current ball speed
+     * @returns {number} Current speed magnitude
+     */
+    getSpeed() {
+        return MathUtils.magnitude(this.velocity);
+    }
+
     reset() {
         this.onPaddle = true;
         this.launched = false;
